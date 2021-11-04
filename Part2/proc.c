@@ -111,6 +111,12 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+  //Added
+  //Init shared mapping
+  for(int i=0; i<64;i++){
+	p->shared_mem[i].key=-1;
+	p->shared_mem[i].vadd=0;
+  }
 
   return p;
 }
@@ -173,6 +179,8 @@ growproc(int n)
   switchuvm(curproc);
   return 0;
 }
+//Added
+extern int copy_shared_regions(struct proc *, struct proc *);
 
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
@@ -196,6 +204,7 @@ fork(void)
     np->state = UNUSED;
     return -1;
   }
+  copy_shared_regions(curproc, np); //copy shared regions when forking
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
