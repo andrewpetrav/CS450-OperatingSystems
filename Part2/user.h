@@ -23,6 +23,9 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+//Added
+void* GetSharedPage(int, int);
+int FreeSharedPage(int);
 
 // ulib.c
 int stat(const char*, struct stat*);
