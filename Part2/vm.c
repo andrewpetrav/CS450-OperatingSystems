@@ -392,3 +392,140 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 //PAGEBREAK!
 // Blank page.
 
+//Added
+
+#define MAX_REGION_SIZE 64 //change?
+typedef char bool;
+struct shared_region{ //shared memory struct
+	bool valid; //determine if valid
+	int rc;
+	int length;
+	uint physical_pages[MAX_REGION_SIZE];
+};
+struct shared_region regions[64]; //create struct
+
+//This function is to map the region (key) to process p at address add
+void map_shared_region(int key, struct proc *p, void *add){
+	for(int i=0; i<regions[key].length; i++){
+		mappages(p->pgdir, (void*)(i*PGSIZE+add), PGSIZE,
+				regions[key].physical_pages[i], PTE_W | PTE_U);
+	}
+}
+
+//GetSharedPage syscall which will perform the mapping and, if necessary
+//in order to allow for shared memory, will allocated pages for the process
+void * GetSharedPage(int key, int length){
+	if(key<0||key>64){ //if invalid key
+		return (void*)0;
+	}
+
+	else if(!regions[key].valid){ //then allocated pages 
+		for(int i=0; i<length; i++){
+			void* npage=kalloc(); //new continuous memory chunk for new page
+			memset(npage,0,PGSIZE); //to zero out the page
+			regions[key].physical_pages[i]=V2P(npage); //save
+		}
+		regions[key].valid=1; //set to valid 
+		regions[key].length=length;
+		regions[key].rc=0;
+	}
+	else if(regions[key].length!=length){
+		return (void*)0;
+	}
+	regions[key].rc+=1;
+
+	//Get index
+	struct proc *p=myproc();
+	int index=-1;
+	for(int i=0;i<64;i++){
+		if(p->shared_mem.key==-1){ //found index
+			index=i;
+			break;
+		}
+	}
+
+	if(index==-1){ //if not found
+		return (void*)0;
+	}
+	//Now let's get lowest virtual address space that is allocated
+	void *vadd=(void*)KERNBASE-PGSIZE;
+	for(int i=0; i<64; i++){
+		if(p->shared_mem[i].key!=-1&&(uint)(vadd)>
+				(uint)(p->shared_mem[i].vadd)){
+			vadd=p->shared_mem[i].vadd;
+		}
+	}
+	//Get the virtual addresses of the newly mapped pages
+	vadd=(void*)vadd - length*PGSIZE;
+	p->shared_mem[index].vadd=vadd;
+	p->shared_mem[index].key=key;
+	//Then map them into memory
+	map_shared_region(key, p, vadd);
+	return vadd;
+}
+
+//Syscall for freeing shared pages
+int FreeSharedPage(int key){
+	//clean shared mem struct
+	struct proc *p=myproc();
+	void *vadd=0;
+	for(int i=0;i<64;i++){
+		if(p->shared_mem[i].key==key){ //if right key
+			vadd=p->shared_mem[i].vadd;
+			p->shared_mem[i].key=-1;
+			p->shared_mem[i].vadd=0;
+			break;
+		}
+	}
+	if(vadd==0){
+		return -1;
+	}
+	//clean PTEs
+	struct shared_mem_region* smreg=&regions[key];
+	for(int i=0;i<smref->length;i++){
+		pte_t* pte=walkpgdir(p->pgdir, i*PGSIZE + (char*)vadd,0);
+		if(pte==0){
+			return -1;
+		}
+		*pte=0;
+	}
+
+	smreg->rc--; //decrement reference count
+	if(smreg->rc==0){ //if unused, free it
+		regions[key].valid=0;
+		regions[key].rc=0;
+		for(int i=0;i<regions[key].length;i++){
+			kfree(P2V(regions[key].physical_pages[i]));
+			//use kfree because we used kmalloc
+		}
+		regions[key].length=0;
+	}
+	return 0;
+}
+
+int is_shared(uint);
+void attempt_free_ppage(void *);
+
+//check to see if an address is associated with a shared mem page
+int is_shared(uint add){
+	for(int i=0; i<64; i++){
+		/*
+		 *if(!regions[i].valid){
+			continue;
+		 }
+		 */
+		for(int j=0;j<regions[i].length;j++){
+			if(add==(uint)regions[i].physical_pages[j]){
+				return 1; //true
+			}
+		}
+	}
+	return 0; //false
+}
+
+//free pages that return 0 when called with is_shared
+void attempt_free_ppage(void *add){
+	if(is_shared(V2P(add))==0){
+		kfree(add);
+	}
+}
