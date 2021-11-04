@@ -89,3 +89,25 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+extern void *GetSharedPage(int k, int l);
+void* sys_GetSharedPage(void){
+	int key;
+	int length;
+	if(argint(0, &key)<0){
+		return (void*)-1;
+	}
+	else if(argint(1, &length)<0){
+		return (void*)-1;
+	}
+	return (void*)(GetSharedPage(key, length));
+}
+
+extern int FreeSharedPage(int id);
+int sys_FreeSharedPage(int id){
+	int key;
+	if(argint(0, &key)<0){
+		return -1;
+	}
+	return FreeSharedPage(key);
+}
