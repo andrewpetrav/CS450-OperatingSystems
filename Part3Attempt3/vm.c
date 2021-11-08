@@ -450,44 +450,39 @@ sharedmempage(int key, int numPages, struct proc* proc)
   
   if(numPages<0||numPages>NUM_PAGES)
     return (void*)-1;
-//if first call for a process, start at the top of the process' VA space
+
   for(int i=0;i<NUM_KEYS;i++){
     if(proc->keys[i]==1)
       flag=1;
+      break;
   }
 
   if(flag){
 	proc->top=KERNBASE;
   }  
-	//update the reference count of the shared page if the calling process has not already used this shared page
   if(proc->keys[key]==0){
-    proc->keys[key]=1;//and set this key to used for this process
+    proc->keys[key]=1;
     refcounts[key]++;
   } 
 
-  //allocate memory if key hasn't been used before (kalloc();)
   if(usedkeys[key]==0){
-    //first, varify that we are not accessing already allocated memory. It so, throw an error
     if ((proc->top - numPages*PGSIZE) < proc->sz) {
       return (void*)-1;
     }
-    //start to allocate physical memory
     char* memory;
     int page;
-    for(page=0; page < numPages; page++){ //for each requested page
-      memory = kalloc(); //grab physical memory page 
+    for(page=0; page < numPages; page++){ 
+      memory = kalloc();  
       if(memory==0) {
       	cprintf("All Out Of Memory!\n");
       	return (void*)-1; //throw error
       }
-      //set physical page contents to 0 (memcpy)
       memset(memory,0,PGSIZE);
       //store the reference to the physical page
       padds[key][page] = memory;
       
       cprintf("PA stored in key %d is %x\n", key, memory);
       
-      //change the address of the next avalible virtual page in the calling process' address space ie (oldtop-pagesize*numPages)
       add = (void*)(proc->top-PGSIZE);
 
       proc->page_va_addr[key][page] = add;
@@ -505,20 +500,18 @@ sharedmempage(int key, int numPages, struct proc* proc)
     //mark key as used in the usedkey array
     usedkeys[key] = 1;
     pagecounts[key] += numPages;
-  }
+  } 
   else{ //key is being used by processes
-    
-    //first, check if the current process is using this key. If not, start mapping for each requested page
+
     if(!flag){
       int page;
-      for(page=0;page<numPages;page++){
-        //change the address of the next avalible virtual page in the calling process' address space 
+      for(page=0;page<numPages;page++){ 
 
         add = (void*)(proc->top-PGSIZE);
         proc->page_va_addr[key][page] = address;
         vadds[key][page] = address;
 
-        //update the current user top
+        //update top
         proc->top -= PGSIZE;
 
         //map virtual page to physical page with mappages()
@@ -532,8 +525,7 @@ sharedmempage(int key, int numPages, struct proc* proc)
     }
     else
     {
-      //if this process has already requested with this key, simply return the address stored in proc->page_va_addr[][]
-     //forked process comes in here
+     
       if(numPages == pagecounts[key]){
         add = vadds[key][numPages];
         if(mappages(proc->pgdir, add, PGSIZE, (uint)padds[key][numPages-1], PTE_P|PTE_W|PTE_U)<0){
@@ -558,8 +550,7 @@ sharedmempage(int key, int numPages, struct proc* proc)
 void
 sharedmeminit()
 {
-	//initialize all of the support storage structures to 0
-	//callme in main.c as OS boots
+	//initialization
 	int i;
 	for(i=0; i<NUM_KEYS; i++){
 	
@@ -595,24 +586,21 @@ freesharedpage(int key, struct proc* proc)
 	int i;
 	int flag=0; //0 until called
 	int numPages = pagecounts[key];
-	if(proc->keys[key]==1)//if the key is in the calling process' list of keys, its has called sharedmempage before
+	if(proc->keys[key]==1)
 		{
 			flag=1;
+			break;
 
 		}
 		if(!flag) 
 		{
 			cprintf("Calling process not associated with that key\n");
 			return;
-		} //if it hasn't called, nothing to free, return 
-	//}
-	for(i=0; i<numPages; i++){ //for each page associated with the key, 
-		cprintf("In freeing pages loop of freesharedpage\n");	
-		pte_t* pte = walkpgdir(proc->pgdir, proc->page_va_addr[key][i],0); //get the pte corropsponding to the VA for that key
+		} 
+	for(i=0; i<numPages; i++){ 
+		pte_t* pte = walkpgdir(proc->pgdir, proc->page_va_addr[key][i],0); 
 		uint pa;
 		cprintf("pte is: %p\n", pte);		
-		//Do as is done in the deallocuvm, 
-		
       		pa = PTE_ADDR(*pte); //convert pte to physical address
      		
 		if(pa == 0){
@@ -624,10 +612,7 @@ freesharedpage(int key, struct proc* proc)
 	        
 		kfree(v); //Free the page
                 
-		*pte = 0; //clear the page table entry
-		
-		//to test perhaps check if the process can still communicate via the shared page		
-	
+		*pte = 0; 
 	}
 
 	return;
