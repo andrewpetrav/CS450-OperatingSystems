@@ -7,18 +7,18 @@
 #include "proc.h"
 #include "elf.h"
 
-//#define NUM_KEYS (8)
+//#define NUM_KEYS 8
 
 
-//#define NUM_PAGES (8)
+//#define NUM_PAGES 8
 
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 
-void* pagevaddresses[NUM_KEYS][NUM_PAGES];
-void* pagepaddresses[NUM_KEYS][NUM_PAGES];
+void* vadds[NUM_KEYS][NUM_PAGES]; //virtual addresses
+void* padds[NUM_KEYS][NUM_PAGES]; //physical addresses
 
-int refcounts[NUM_KEYS];
+int refcounts[NUM_KEYS]; 
 int usedkeys[NUM_KEYS]; 
 int pagecounts[NUM_KEYS];
 
@@ -441,37 +441,31 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 void*
 sharedmempage(int key, int numPages, struct proc* proc)
 {
-	void* address= 0x0;
-  int firstCall = 1; //flag for calling for the first time
+  void* add= 0x0;
+  int flag = 0; //0 until called
 	
-
-	//check parameters are valid
-  if(key<0||key >NUM_KEYS)
+ //check parameters are valid
+  if(key<0||key>NUM_KEYS)
     return (void*)-1;
   
   if(numPages<0||numPages>NUM_PAGES)
     return (void*)-1;
-
-  int a;
-	//if first call for a process, start at the top of the process' VA space
-  for(a=0;a<NUM_KEYS;a++){
-    if(proc->keys[a]==1)
-      firstCall = 0;
+//if first call for a process, start at the top of the process' VA space
+  for(int i=0;i<NUM_KEYS;i++){
+    if(proc->keys[i]==1)
+      flag=1;
   }
 
-  if(firstCall)
-    proc->top = KERNBASE;
-
-
-  
+  if(flag){
+	proc->top=KERNBASE;
+  }  
 	//update the reference count of the shared page if the calling process has not already used this shared page
   if(proc->keys[key]==0){
     proc->keys[key]=1;//and set this key to used for this process
-    //cprintf("key set to used with %d\n",proc->keys[key]);
     refcounts[key]++;
   } 
 
-	//allocate memory if key hasn't been used before (kalloc();)
+  //allocate memory if key hasn't been used before (kalloc();)
   if(usedkeys[key]==0){
     //first, varify that we are not accessing already allocated memory. It so, throw an error
     if ((proc->top - numPages*PGSIZE) < proc->sz) {
@@ -489,20 +483,20 @@ sharedmempage(int key, int numPages, struct proc* proc)
       //set physical page contents to 0 (memcpy)
       memset(memory,0,PGSIZE);
       //store the reference to the physical page
-      pagepaddresses[key][page] = memory;
+      padds[key][page] = memory;
       
       cprintf("PA stored in key %d is %x\n", key, memory);
       
       //change the address of the next avalible virtual page in the calling process' address space ie (oldtop-pagesize*numPages)
-      address = (void*)(proc->top-PGSIZE);
+      add = (void*)(proc->top-PGSIZE);
 
-      proc->page_va_addr[key][page] = address;
+      proc->page_va_addr[key][page] = add;
       
       proc->top -= PGSIZE;
 
-      pagevaddresses[key][page] = address;
+      vadds[key][page] = add;
       //map virtual page to physical page with mappages()
-      if(mappages(proc->pgdir, address, PGSIZE, (uint)(memory), PTE_P|PTE_W|PTE_U)<0){
+      if(mappages(proc->pgdir, add, PGSIZE, (uint)(memory), PTE_P|PTE_W|PTE_U)<0){
         cprintf("mappages failed.");
         return (void*)-1; 
       }
@@ -511,66 +505,54 @@ sharedmempage(int key, int numPages, struct proc* proc)
     //mark key as used in the usedkey array
     usedkeys[key] = 1;
     pagecounts[key] += numPages;
-    //cprintf("first time key is used! page count for key %d is %d\n",key,pagecounts[key]);
-
-
-  }else{ //key is being used by processes
+  }
+  else{ //key is being used by processes
     
     //first, check if the current process is using this key. If not, start mapping for each requested page
-    if(firstCall){
-      //cprintf("Key is being used by other processes, but it's the first time being called by the current process\n");
+    if(!flag){
       int page;
       for(page=0;page<numPages;page++){
-
         //change the address of the next avalible virtual page in the calling process' address space 
 
-        address = (void*)(proc->top-PGSIZE);
-        //cprintf("address is: %x\n", address);
+        add = (void*)(proc->top-PGSIZE);
         proc->page_va_addr[key][page] = address;
-        pagevaddresses[key][page] = address;
+        vadds[key][page] = address;
 
         //update the current user top
         proc->top -= PGSIZE;
 
-        //cprintf("proc->top is now: %x\n", proc->top);
-        
-        //cprintf("PA in key %d is %d\n",key, (uint)pagepaddresses[key][page]);
         //map virtual page to physical page with mappages()
-        if(mappages(proc->pgdir, address, PGSIZE, (uint)pagepaddresses[key][page]  , PTE_P|PTE_W|PTE_U)<0){
+        if(mappages(proc->pgdir, add, PGSIZE, (uint)padds[key][page]  , PTE_P|PTE_W|PTE_U)<0){
           cprintf("mappages failed.");
           return (void*)-1; 
         }
 
       }
       pagecounts[key] += numPages;
-    }else
+    }
+    else
     {
       //if this process has already requested with this key, simply return the address stored in proc->page_va_addr[][]
      //forked process comes in here
       if(numPages == pagecounts[key]){
-        address = pagevaddresses[key][numPages];
-        //cprintf( "Mapping with stored PA %d\n",pagepaddresses[key][numPages-1]);
-        if(mappages(proc->pgdir, address, PGSIZE, (uint)pagepaddresses[key][numPages-1], PTE_P|PTE_W|PTE_U)<0){
+        add = vadds[key][numPages];
+        if(mappages(proc->pgdir, add, PGSIZE, (uint)padds[key][numPages-1], PTE_P|PTE_W|PTE_U)<0){
           cprintf("mappages failed.");
           return (void*)-1; 
         }
         
         cprintf("Current process has requested with the same key before\n");
 
-      }else{
-        cprintf("Number of pages requested is too high\n");
-        address = pagevaddresses[key][numPages];
       }
-      
-      //pagecounts[key] += numPages;
+      else{
+        cprintf("Number of pages requested is too high\n");
+        add = vadds[key][numPages];
+      } 
     }
-    
-    
-    
   }
 	
-	cprintf("physical address of mem = %x", pagepaddresses[key][numPages-1]);	
-	return address;
+	cprintf("physical address of mem = %x", padds[key][numPages-1]);	
+	return add;
 }
 
 void
@@ -591,12 +573,11 @@ sharedmeminit()
 	{
 		for(q=0; q<NUM_KEYS; q++)
 		{
-			pagepaddresses[i][q]=0;
-      pagevaddresses[i][q]=0;
+			padds[i][q]=0;
+      			vadds[i][q]=0;
 
 		}
 	}	
-	
 	
 	return;
 }
@@ -611,19 +592,15 @@ freesharedpage(int key, struct proc* proc)
 	//check if refcount == 0
 	//if so, deallocate (kfree)
 	
-	
-
 	int i;
-	int called=0;
+	int flag=0; //0 until called
 	int numPages = pagecounts[key];
-	//for(i=0; i<NUM_KEYS; i++)
-	//{
-		if(proc->keys[key]==1)//if the key is in the calling process' list of keys, its has called sharedmempage before
+	if(proc->keys[key]==1)//if the key is in the calling process' list of keys, its has called sharedmempage before
 		{
-			called=1;
+			flag=1;
 
 		}
-		if(!called) 
+		if(!flag) 
 		{
 			cprintf("Calling process not associated with that key\n");
 			return;
