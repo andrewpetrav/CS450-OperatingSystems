@@ -89,3 +89,26 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+//Added
+void* sys_GetSharedPage(int key, int pages){
+	if(argint(0,&key)<0){ //invalid key
+		return (void*)-1;
+	}
+	if(argint(0,&pages)<0){ //invalid amount of pages
+		return (void*)-1;
+	}
+
+	//if key unique
+		//add key to table
+		//add pages, filled with 0s
+	//if not unique
+		//
+}
+
+int sys_FreeSharedPage(int key){
+	if(argint(0,&key)<0){ //invalid key
+		return -1;
+	}
+	return FreeSharedPage(key);
+}

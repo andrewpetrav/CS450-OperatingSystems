@@ -7,6 +7,10 @@
 #include "proc.h"
 #include "spinlock.h"
 
+//Added
+#define NUM_KEYS (8)
+#define NUM_PAGES (4)
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -88,6 +92,15 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  //Added
+  for(int i=0; i<NUM_KEYS;i++){
+	p->keys[i]=0;
+	for(int j=0;j<NUM_PAGES; j++){
+		p->addresses[i][j]=NULL;
+	}
+  }
+  p->top=USERTOP;
+
 
   release(&ptable.lock);
 
@@ -199,7 +212,16 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+  
+  //Added -- copy shared memory to child
+  for(i=0;i<NUM_KEYS;i++){
+	np->keys[i]=proc->keys[i];
+	for(int j=0;j<NUM_PAGES;j++){
+		np->addresses[i][j]=proc->addresses[i][j];
+	}
 
+  }
+  np->top=proc->top;
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 

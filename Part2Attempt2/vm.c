@@ -7,6 +7,14 @@
 #include "proc.h"
 #include "elf.h"
 
+//added
+#define NUM_KEYS[8]; //for simplicity's and memory's sake, we will allow 8 shared memory regions
+#define NUM_PAGES[4]; //and each shared memory region can have 4 pages
+int key_used[NUM_KEYS]; //an array that will hold which keys are being used
+int num_pages_used[NUM_KEYS]; //how many pages currently being used by processes so process knows next available page (((change implementation to avoid fragmentation?)))
+void* key_page_addresses[NUM_KEYS][NUM_PAGES];
+
+
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 
@@ -385,6 +393,84 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
   return 0;
 }
 
+//Added
+void shared_mem_init(void){ //init arrays
+	for(int i=0; i<NUM_KEYS; i++){
+		key_used[i]=0;
+		num_pages_used[i]=0;
+		for(int j=0;j<NUM_PAGES;j++){
+			key_page_addresses[i][j]=NULL;
+		}
+	}
+}
+
+void* GetSharedPage(int key, int pages){
+	int i;
+
+	if(key<0||key>7){ //if out of bounds
+		return (void*)-1;
+	}
+	if(pages<1||pages>4){ //if out of bounds
+		return (void*)-1;
+	}
+
+	//check to see if first time process calling this function
+	for(i=0;i<NUM_KEYS;i++){
+		if(proc->keys[i]==1){ //if not first time
+			break;
+		}
+	}
+	if(i==NUM_KEYS){
+		proc->top=USERTOP; //if first time, set top 
+	}
+
+	//If key hasn't been used yet, allocate memory
+	if(key_used[key]==0){
+		//Ensure not trying to get already allocated mem
+		if((proc->top-pages*PGSIZE)<proc->sz){
+			return (void*)-1;
+		}
+		//Allocate physical memory and map virtual to physical mapping
+		char* m; //memory
+		for(i=0;i<pages;i++){
+			m=kalloc(); //physical memory
+			if(m==0){
+				cprintf("Out of Memory\n");
+				return (void*)-1;
+			}
+			memset(m, 0, PGSIZE);
+			//Store physical page
+			key_page_addresses[key][i]=m;
+
+			//Mapping
+			void* add=(void*)(proc->top-PGSIZE);
+			proc->addresses[key][i]=add;
+			//Change address of the next available virtual page
+			proc->top -= PGSIZE;
+
+			//Actual mapping
+			if(mappages(proc->pgdir, add, PGSIZE, PADDR(m), PTE_P|PTE_W|PTE_U)<0){
+				return (void*)-1;
+			}
+		}
+		key_used[key]=1; //update to key being used
+		num_pages_used[key]=pages; //update 	
+	}
+	else{ //key is being used
+		if(proc->keys[key]==0){ //if this process not using this key
+			//create mapping
+			for(i=0;i<NUM_PAGES;i++){
+				void* add=(void*)(proc->top-PGSIZE);
+				proc->addresses[key][i]=add;
+				proc->top -= PGSIZE;
+				if(mappages(proc->pgdir,add,PGSIZE,PADDR(key_page_addresses[key][i]), PTE_P|PTE_W|PTE_U) < 0){
+						return (void*)-1;
+						}
+			}
+		}
+	}
+	return proc->addresses[key][num_pages_used[key]-1];
+}
 //PAGEBREAK!
 // Blank page.
 //PAGEBREAK!
