@@ -91,14 +91,16 @@ sys_uptime(void)
 }
 
 //Added
-void* sys_GetSharedPage(int key, int pages){
+void* sys_GetSharedPage(void){
+	int key;
+	int pages;
 	if(argint(0,&key)<0){ //invalid key
 		return (void*)-1;
 	}
 	if(argint(0,&pages)<0){ //invalid amount of pages
 		return (void*)-1;
 	}
-
+	return GetSharedPage(key, pages);
 	//if key unique
 		//add key to table
 		//add pages, filled with 0s
@@ -106,7 +108,8 @@ void* sys_GetSharedPage(int key, int pages){
 		//
 }
 
-int sys_FreeSharedPage(int key){
+int sys_FreeSharedPage(void){
+	int key;
 	if(argint(0,&key)<0){ //invalid key
 		return -1;
 	}

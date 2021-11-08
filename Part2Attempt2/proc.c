@@ -6,7 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-
+#include <stddef.h>
 //Added
 #define NUM_KEYS (8)
 #define NUM_PAGES (4)
@@ -99,7 +99,7 @@ found:
 		p->addresses[i][j]=NULL;
 	}
   }
-  p->top=USERTOP;
+  //p->top=USERTOP;
 
 
   release(&ptable.lock);
@@ -215,13 +215,13 @@ fork(void)
   
   //Added -- copy shared memory to child
   for(i=0;i<NUM_KEYS;i++){
-	np->keys[i]=proc->keys[i];
+	np->keys[i]=curproc->keys[i];
 	for(int j=0;j<NUM_PAGES;j++){
-		np->addresses[i][j]=proc->addresses[i][j];
+		np->addresses[i][j]=curproc->addresses[i][j];
 	}
 
   }
-  np->top=proc->top;
+  np->top=curproc->top;
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 

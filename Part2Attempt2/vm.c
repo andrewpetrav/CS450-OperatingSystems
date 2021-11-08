@@ -471,6 +471,10 @@ void* GetSharedPage(int key, int pages){
 	}
 	return proc->addresses[key][num_pages_used[key]-1];
 }
+
+int FreeSharedPage(int key){
+
+}
 //PAGEBREAK!
 // Blank page.
 //PAGEBREAK!
