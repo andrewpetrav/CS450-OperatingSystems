@@ -49,9 +49,9 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  int top;                     // top of VA
-  void* page_va_addr[20][20];// stores VA address of pages for the process
-  int keys[20];	             // List of Keys to shared memory pages
+  int top;                     // top of the virtual address
+  void* page_va_addr[20][20];// stores the virtual addreses  of pages for the process
+  int keys[20];	             // shared mem keys
 
   
 };

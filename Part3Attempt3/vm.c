@@ -594,20 +594,19 @@ freesharedpage(int key, struct proc* proc)
 		}
 		if(!flag) 
 		{
-			cprintf("Calling process not associated with that key\n");
+			cprintf("Calling a process that is  not associated with that key\n");
 			return;
 		} 
 	for(i=0; i<numPages; i++){ 
 		pte_t* pte = walkpgdir(proc->pgdir, proc->page_va_addr[key][i],0); 
 		uint pa;
-		cprintf("pte is: %p\n", pte);		
+		cprintf("PTE: %p\n", pte);		
       		pa = PTE_ADDR(*pte); //convert pte to physical address
      		
 		if(pa == 0){
-                	cprintf("From freesharepage kfree panic\n"); 
 			panic("kfree");
 		}
-		cprintf("Didn't panic inside freeing pages loop of freesharedpage\n");                
+		                
 		char *v = P2V(pa); //convert physical address to virtual
 	        
 		kfree(v); //Free the page

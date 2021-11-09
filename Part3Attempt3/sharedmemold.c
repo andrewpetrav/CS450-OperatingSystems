@@ -4,8 +4,10 @@
 int
 main(void)
 {
-	void* sharedpageaddress = (void*)getsharedpage(0,1);
-	//printf(1, "Shared address is %p", sharedpageaddress);
+	void* shadd1 = (void*)getsharedpage(0,1);
+	void* shadd2 = (void*)getsharedpage(1,1);
+	void* shadd3 = (void*)getsharedpage(1,2);
+	void* shadd4 = (void*)getsharedpage(2,3000000);
 
 	*((int*)(sharedpageaddress)) = 876858;
 	void* sharedaddtwop = (void*)getsharedpage(2,1);
