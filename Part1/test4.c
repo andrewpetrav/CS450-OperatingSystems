@@ -5,12 +5,12 @@ int main(void){
 	typedef struct {
 		void* blah;
 		void* bleh;
-	}leak;
+	}mystruct;
 
-	leak l=(leak)malloc(sizeof(leak));
-	l->blah=malloc(sizeof(leak));
-	l->bleh=malloc(sizeof(leak));
+	mystruct* l=(mystruct*)malloc(sizeof(mystruct));
+	l->blah=malloc(sizeof(mystruct));
+	l->bleh=malloc(sizeof(mystruct));
 
-	((leak*)(leak->blah))->blah=malloc(sizeof(leak));
+	((mystruct*)(mystruct->blah))->blah=malloc(sizeof(mystruct));
 	return 0;
 }
