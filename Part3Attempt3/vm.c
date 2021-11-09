@@ -575,14 +575,7 @@ sharedmeminit()
 
 void
 freesharedpage(int key, struct proc* proc)
-{
-	//verify that the calling process has already called sharedmempage with that key & hasn't been removed already 
-	//	(ie, is still mapped in the process' page_va_addr array)
- 	//remove page table entry from calling process
-	//decrement the reference
-	//check if refcount == 0
-	//if so, deallocate (kfree)
-	
+{	
 	int i;
 	int flag=0; //0 until called
 	int numPages = pagecounts[key];
@@ -592,10 +585,9 @@ freesharedpage(int key, struct proc* proc)
 			break;
 
 		}
-		if(!flag) 
-		{
-			cprintf("Calling a process that is  not associated with that key\n");
-			return;
+	if(!flag) {
+		cprintf("This process is not associated with this key\n");
+		return;
 		} 
 	for(i=0; i<numPages; i++){ 
 		pte_t* pte = walkpgdir(proc->pgdir, proc->page_va_addr[key][i],0); 
